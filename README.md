@@ -10,7 +10,7 @@ The bot's commands are divided in different "modules", each serving a different 
 
 **&help** - Will show a list of available modules, if followed by a module name, will show a list of available commands in that module.
 
-##Emoji - All commands based around adding or saving new "emojis" into the database.
+## Emoji - All commands based around adding or saving new "emojis" into the database.
 
 **&add** - This will add a new emoji to this server's emoji list.
 
@@ -18,6 +18,6 @@ The bot's commands are divided in different "modules", each serving a different 
 
 **&list** - Shows a listing of the emojis in the database for this server.
 
-#Posting the Emojis
+# Posting the Emojis
 
 The bot will read messages and try to convert messages that are formatted like an emoji (i.e. :emoji:) into one of the images in the database if the posted emoji code isn't already found inside the server's actual custom emojis.
