@@ -93,7 +93,7 @@ bot.on("ready", function () {
                                 emojiName = paramsArray[0]
                             }
 
-                            if(typeof value == "undefined"){
+                            if(typeof emojiName == "undefined"){
                                 msg.channel.send("You did not give me a name for this emoji, buddy. I kinda need it.");
                                 return;
                             }
