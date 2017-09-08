@@ -46,6 +46,9 @@ bot.login(auth.token);
 bot.on("ready", function () {
 	console.log('Did somebody call for a new reaction?');
     bot.user.setGame("with so many faces!");
+    if (!fs.existsSync("./emojis/")){
+        fs.mkdirSync("./emojis/");
+    }
     
     sql.migrate();
 
@@ -143,6 +146,8 @@ bot.on("ready", function () {
                                 sql.run(`DELETE FROM Emojis WHERE id = '${row.id}'`);
                                 msg.channel.send("Emoji '" + params + "' was successfully removed.");
                             });
+                            
+                            return;
                         }
 
                         msg.channel.send("Sorry, bud, but you don't have sufficient permissions to edit server emojis.");
