@@ -93,6 +93,11 @@ bot.on("ready", function () {
                                 emojiName = paramsArray[0]
                             }
 
+                            if(typeof value == "undefined"){
+                                msg.channel.send("You did not give me a name for this emoji, buddy. I kinda need it.");
+                                return;
+                            }
+
                             if(msg.guild.emojis.find("name", emojiName) != null){
                                 msg.channel.send("This emoji already exists in the server.");
                                 return;
@@ -127,16 +132,20 @@ bot.on("ready", function () {
                     usage: "<emoji name> (Ex. &remove SleepyWoof)",
                     description: "Removes a previously added emoji from this server's database.",
                     process: function(msg, params) {
-                        sql.get(`SELECT * FROM Emojis WHERE name = '${params}'`).then(row => {
-                            if(!row){
-                                msg.channel.send("'" + params + "' doesn't seem to exist in the database.");
-                                return;
-                            }
+                        if(msg.member.hasPermission("MANAGE_EMOJIS")){
+                            sql.get(`SELECT * FROM Emojis WHERE name = '${params}'`).then(row => {
+                                if(!row){
+                                    msg.channel.send("'" + params + "' doesn't seem to exist in the database.");
+                                    return;
+                                }
 
-                            fs.unlink(__dirname + row.imagePath);
-                            sql.run(`DELETE FROM Emojis WHERE id = '${row.id}'`);
-                            msg.channel.send("Emoji '" + params + "' was successfully removed.");
-                        });
+                                fs.unlink(__dirname + row.imagePath);
+                                sql.run(`DELETE FROM Emojis WHERE id = '${row.id}'`);
+                                msg.channel.send("Emoji '" + params + "' was successfully removed.");
+                            });
+                        }
+
+                        msg.channel.send("Sorry, bud, but you don't have sufficient permissions to edit server emojis.");
                     }
                 },
                 "list":{
@@ -145,7 +154,7 @@ bot.on("ready", function () {
                     process: function(msg, params){
                         sql.all(`SELECT * FROM Emojis WHERE serverId = '${msg.guild.id}'`).then(rows => {
                             if(rows.length === 0){
-                                msg.channel.send("This server has no recorded eomjis in the database.");
+                                msg.channel.send("This server has no recorded emojis in the database.");
                                 return;
                             }
                             var listString = "**__This server has the following emojis:__**";

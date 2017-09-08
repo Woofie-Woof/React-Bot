@@ -1,0 +1,32 @@
+{
+  "name": "react-bot",
+  "version": "1.0.0",
+  "description": "React Bot is designed to store images inside a database to simulate additional emoji slots per server. It will automatically resize images as needed and it is fully customizable.",
+  "main": "React.js",
+  "dependencies": {
+    "discord.js": "^11.2.1",
+    "erlpack": "github:hammerandchisel/erlpack",
+    "node-opus": "^0.2.6",
+    "request": "^2.81.0",
+    "sqlite": "^2.8.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Woofie-Woof/React-Bot.git"
+  },
+  "keywords": [
+    "discord",
+    "discord.js",
+    "discord-bot"
+  ],
+  "author": "Woofie-Woof",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Woofie-Woof/React-Bot/issues"
+  },
+  "homepage": "https://github.com/Woofie-Woof/React-Bot#readme"
+}
