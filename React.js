@@ -39,6 +39,16 @@ catch(e) {
     console.log("For database keeping purposes. 'sqlite' is pretty necessary.");
 }
 
+try {
+    var imgur = require('imgur');
+    imgur.setClientId(auth.imgur);
+}
+catch(e){
+    console.log("'imgur' is pretty necessary for uploading images for later use.");
+}
+
+var sync = require('synchronize');
+
 var bot = new Discord.Client({autoReconnect: true, disableEvents: ["TYPING_START", "TYPING_STOP", "GUILD_MEMBER_SPEAKING", "GUILD_MEMBER_AVAILABLE", "PRESSENCE_UPDATE"]});
 
 bot.login(auth.token);
@@ -86,49 +96,55 @@ bot.on("ready", function () {
                     usage: "<link or image> <emoji name> (Ex. &add https://i.imgur.com/1CbmsDd.png SleepyWoof)",
                     description: "This will add a new emoji to this server's emoji list.",
                     process: function(msg, params){
-                        if(msg.member.hasPermission("MANAGE_EMOJIS")){
-                            var imgUrlReg = /\.(jpg|png)$/;
-                            var paramsArray = params.split(" ");
-                            var link = paramsArray[0];
-                            var emojiName = paramsArray[1];
-                            if(msg.attachments.array().length > 0){
-                                link = msg.attachments.array()[0].url;
-                                emojiName = paramsArray[0]
-                            }
-
-                            if(typeof emojiName == "undefined"){
-                                msg.channel.send("You did not give me a name for this emoji, buddy. I kinda need it.");
-                                return;
-                            }
-
-                            if(msg.guild.emojis.find("name", emojiName) != null){
-                                msg.channel.send("This emoji already exists in the server.");
-                                return;
-                            }
-                            sql.get(`SELECT * FROM Emojis WHERE serverId = '${msg.guild.id}' AND name = '${emojiName}'`).then(row => {
-                                if(row){
-                                    msg.channel.send("This emoji already exists in the database.");
-                                    return;
-                                }
-                            });
-
-                            match = imgUrlReg.exec(link);
-                            if(match != null){
-                                request.head(link, function(err, res, body){                             
-                                    request(link).pipe(fs.createWriteStream(__dirname + "\\emojis\\" + msg.guild.id + "\\" + emojiName + match[0])).on('close', function (){
-                                        console.log("Image saved.");
-                                    });
-                                });
-
-                                sql.run('INSERT INTO Emojis (serverId, name, isGlobal, imagePath) VALUES (?, ?, ?, ?)', [msg.guild.id, emojiName, 0, "\\emojis\\" + msg.guild.id + "\\" + emojiName + match[0]]);
-                                msg.channel.send("New emoji '" + emojiName + "' successfully added.");
-                                return;
-                            }
-
-                            msg.channel.send("I don't believe that's an image, buddy.");
+                        if(!msg.member.hasPermission("MANAGE_EMOJIS")){
+                            msg.channel.send("Sorry, bud, but you don't have sufficient permissions to edit server emojis.");
+                        }
+                        var imgUrlReg = /\.(jpg|png)$/;
+                        var paramsArray = params.split(" ");
+                        var link = paramsArray[0];
+                        var emojiName = paramsArray[1];
+                        if(msg.attachments.array().length > 0){
+                            link = msg.attachments.array()[0].url;
+                            emojiName = paramsArray[0]
                         }
 
-                        msg.channel.send("Sorry, bud, but you don't have sufficient permissions to edit server emojis.");
+                        if(typeof emojiName == "undefined"){
+                            msg.channel.send("You did not give me a name for this emoji, buddy. I kinda need it.");
+                            return;
+                        }
+
+                        if(msg.guild.emojis.find("name", emojiName) != null){
+                            msg.channel.send("This emoji already exists in the server.");
+                            return;
+                        }
+                        sql.get(`SELECT * FROM Emojis WHERE serverId = '${msg.guild.id}' AND name = '${emojiName}'`).then(row => {
+                            if(row){
+                                msg.channel.send("This emoji already exists in the database.");
+                                return;
+                            }
+                        });
+
+                        match = imgUrlReg.exec(link.toLowerCase());
+                        if(match == null){
+                            msg.channel.send("I don't believe that's an image, buddy.");
+                            return;
+                        }
+
+                        imagePath = "\\emojis\\" + msg.guild.id + "\\" + emojiName + match[0];
+                        request.head(link, function(err, res, body){              
+                            request(link).pipe(fs.createWriteStream(__dirname + imagePath)).on('close', function (){
+                                console.log("Image saved.");
+                            });
+                        });
+
+                        imageUrl = sync.fiber(function (){
+                            var json = sync.await(imgur.uploadFile(__dirname + imagePath));
+                            console.log(json);
+                            return json.data.link;
+                        });
+
+                        sql.run('INSERT INTO Emojis (serverId, name, isGlobal, imagePath, imageUrl) VALUES (?, ?, ?, ?, ?)', [msg.guild.id, emojiName, 0, imagePath, imageUrl]);
+                        msg.channel.send("New emoji '" + emojiName + "' successfully added.");
                     }
                 },
                 "remove":{
@@ -151,6 +167,71 @@ bot.on("ready", function () {
                         }
 
                         msg.channel.send("Sorry, bud, but you don't have sufficient permissions to edit server emojis.");
+                    }
+                },
+                "update":{
+                    usage: "<emoji name> <'name' or 'image'> <new image or name> (Ex. &update SleepyWoof name WoofSleep)",
+                    description: "Updates the specified parameter for the given emoji.",
+                    process: function(msg, params) {
+                        if(!msg.member.hasPermission("MANAGE_EMOJIS")){
+                            msg.channel.send("Sorry, bud, but you don't have sufficient permissions to edit server emojis.");
+                            return;
+                        }
+                        paramsArray = params.split(" ");
+                        if(paramsArray.length < 2){
+                            msg.channel.send("**Not enough paramenters** there, pal. Give me something like `&update SleepyWoof name WoofSlep`");
+                            return;
+                        }
+                        sql.get(`SELECT * FROM Emojis WHERE name = '${paramsArray[0]}'`).then(row => {
+                            if(!row){
+                                msg.channel.send("'" + paramsArray[0] + "' doesn't seem to exist in the database.");
+                                return;
+                            }
+
+                            if(paramsArray[1] == "name"){
+                                if(paramsArray[2] == undefined){
+                                    msg.channel.send("You're not giving me a name to update to here.");
+                                    return;
+                                }
+                                sql.run(`UPDATE Emojis SET name='${paramsArray[2]}' WHERE id='${row.id}'`);
+                                row.name = paramsArray[2];
+                                msg.channel.send("Emoji '" + row.name + "' successfully updated.");
+                                return;
+                            }
+                            else if(paramsArray[1] == "image"){
+                                var link = paramsArray[2];
+                                if(msg.attachments.array().length > 0){
+                                    link = msg.attachments.array()[0].url;
+                                }
+
+                                if(link == null || link == undefined){
+                                    msg.channel.send("You kinda need a new image to update to. Just sayin'.");
+                                    return;
+                                }
+                                
+                                var imgUrlReg = /\.(jpg|png)$/;
+                                match = imgUrlReg.exec(link);
+                                if(match == null){
+                                    msg.channel.send("I don't believe that's an image, buddy.");
+                                    return;
+                                }
+                                
+                                fs.unlink(__dirname + row.imagePath);
+                                row.imagePath = "\\emojis\\" + msg.guild.id + "\\" + row.name + match[0];
+                                request.head(link, function(err, res, body){                             
+                                    request(link).pipe(fs.createWriteStream(__dirname + row.imagePath)).on('close', function (){
+                                        console.log("Image saved.");
+                                    });
+
+                                    imgur.uploadFile(__dirname + row.imagePath).then(json => {
+                                        sql.run(`UPDATE Emojis SET imagePath=${row.imagePath} WHERE id='${row.id}'`);
+                                        sql.run(`UPDATE Emojis SET imageUrl ='${json.data.link}' WHERE id='${row.id}'`);
+                                    });
+                                });
+
+                                msg.channel.send("Emoji '" + row.name + "' successfully updated.");
+                            }
+                        });
                     }
                 },
                 "list":{
@@ -193,8 +274,21 @@ bot.on("message", function (msg) {
             if(!row){
                 return;
             }
+            var emoteEmbed = new Discord.RichEmbed();
+            emoteEmbed.setAuthor(msg.member.displayName, msg.author.avatarURL);
+            emoteEmbed.setColor(msg.member.displayColor);
+            emoteEmbed.setImage(row.imageUrl);
+
+            if(row.imageUrl == "" || row.imageUrl == null){
+                imgur.uploadFile(__dirname + row.imagePath).then(json => {
+                    row.imageUrl = json.data.link;
+                    sql.run(`UPDATE Emojis SET imageUrl ='${row.imageUrl}' where id='${row.id}'`);
+                    emoteEmbed.setImage(row.imageUrl);
+                });
+            }
+
             msg.delete();
-            msg.channel.send(`**${msg.member.displayName}** says:`, {file: __dirname + row.imagePath});
+            msg.channel.send("", {embed: emoteEmbed});
         });
     }
     if (msg.author.id != bot.user.id && msg.content[0] === "&"){
