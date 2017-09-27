@@ -130,20 +130,27 @@ bot.on("ready", function () {
                             return;
                         }
 
-                        imagePath = "\\emojis\\" + msg.guild.id + "\\" + emojiName + match[0];
+                        imagePath = "/emojis/" + msg.guild.id + "/" + emojiName + match[0];
                         request.head(link, function(err, res, body){              
                             request(link).pipe(fs.createWriteStream(__dirname + imagePath)).on('close', function (){
                                 console.log("Image saved.");
                             });
                         });
 
-                        imageUrl = sync.fiber(function (){
-                            var json = sync.await(imgur.uploadFile(__dirname + imagePath));
-                            console.log(json);
-                            return json.data.link;
+                        sql.run('INSERT INTO Emojis (serverId, name, isGlobal, imagePath) VALUES (?, ?, ?, ?)', [msg.guild.id, emojiName, 0, imagePath]);
+
+                        fs.readdirSync("emojis/" + msg.guild.id).forEach((file) => {
+                            emojiName = file.split('.')[0];
+                            sql.get(`SELECT * FROM Emojis WHERE serverId = '${msg.guild.id}' AND name = '${emojiName}'`).then(row => {                   
+                                if(row.imageUrl == "" || row.imageUrl == null){
+                                    imgur.uploadFile(__dirname + row.imagePath).then(json => {
+                                        row.imageUrl = json.data.link;
+                                        sql.run(`UPDATE Emojis SET imageUrl ='${row.imageUrl}' where id='${row.id}'`);
+                                    });
+                                }
+                            });
                         });
 
-                        sql.run('INSERT INTO Emojis (serverId, name, isGlobal, imagePath, imageUrl) VALUES (?, ?, ?, ?, ?)', [msg.guild.id, emojiName, 0, imagePath, imageUrl]);
                         msg.channel.send("New emoji '" + emojiName + "' successfully added.");
                     }
                 },
@@ -217,18 +224,25 @@ bot.on("ready", function () {
                                 }
                                 
                                 fs.unlink(__dirname + row.imagePath);
-                                row.imagePath = "\\emojis\\" + msg.guild.id + "\\" + row.name + match[0];
+                                row.imagePath = "/emojis/" + msg.guild.id + "/" + row.name + match[0];
                                 request.head(link, function(err, res, body){                             
                                     request(link).pipe(fs.createWriteStream(__dirname + row.imagePath)).on('close', function (){
                                         console.log("Image saved.");
                                     });
-
-                                    imgur.uploadFile(__dirname + row.imagePath).then(json => {
-                                        sql.run(`UPDATE Emojis SET imagePath=${row.imagePath} WHERE id='${row.id}'`);
-                                        sql.run(`UPDATE Emojis SET imageUrl ='${json.data.link}' WHERE id='${row.id}'`);
-                                    });
+                                    sql.run(`UPDATE Emojis SET imagePath=${row.imagePath} WHERE id='${row.id}'`);
                                 });
 
+                                fs.readdirSync("emojis/" + msg.guild.id).forEach((file) => {
+                                    emojiName = file.split('.')[0];
+                                    sql.get(`SELECT * FROM Emojis WHERE serverId = '${msg.guild.id}' AND name = '${emojiName}'`).then(rowTwo => {                   
+                                        if(rowTwo.imageUrl == "" || rowTwo.imageUrl == null || rowTwo.id == row.id){
+                                            imgur.uploadFile(__dirname + rowTwo.imagePath).then(json => {
+                                                rowTwo.imageUrl = json.data.link;
+                                                sql.run(`UPDATE Emojis SET imageUrl ='${rowTwo.imageUrl}' where id='${rowTwo.id}'`);
+                                            });
+                                        }
+                                    });
+                                });
                                 msg.channel.send("Emoji '" + row.name + "' successfully updated.");
                             }
                         });
@@ -280,10 +294,12 @@ bot.on("message", function (msg) {
             emoteEmbed.setImage(row.imageUrl);
 
             if(row.imageUrl == "" || row.imageUrl == null){
-                imgur.uploadFile(__dirname + row.imagePath).then(json => {
-                    row.imageUrl = json.data.link;
-                    sql.run(`UPDATE Emojis SET imageUrl ='${row.imageUrl}' where id='${row.id}'`);
-                    emoteEmbed.setImage(row.imageUrl);
+                fs.stat(__dirname + imagePath, (err, stats) => {
+                    imgur.uploadFile(__dirname + row.imagePath).then(json => {
+                        row.imageUrl = json.data.link;
+                        sql.run(`UPDATE Emojis SET imageUrl ='${row.imageUrl}' where id='${row.id}'`);
+                        emoteEmbed.setImage(row.imageUrl);
+                    });
                 });
             }
 
