@@ -4,6 +4,8 @@ A bot for the Discord app based on [Discord.js](https://github.com/hydrabolt/dis
 
 React Bot is designed to store images inside a database to simulate additional emoji slots per server. It will automatically resize images as needed and it is fully customizable.
 
+Want to have React Bot in your server? Follow [this](https://discordapp.com/oauth2/authorize?client_id=351911555904045056&scope=bot&permissions=388096) invite to get him to join!
+
 # Commands
 
 The bot's commands are divided in different "modules", each serving a different purpose. These are outlined below:
