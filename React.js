@@ -144,6 +144,21 @@ bot.on("ready", function () {
                         }
                     }
                 },
+
+                "bye": {
+                    usage: "&bye",
+                    description: "Shuts down the bot.",
+                    process: function(bot, msg, params, choice){
+                        if (msg.author.id === "110932722322505728") {
+                            msg.channel.send("Goodbye, everyone!").then(message => {
+                                bot.destroy();
+                            });
+                        }
+                        else {
+                            msg.reply("I can't really take that order from you. Sorry. :c");
+                        }
+                    }
+                }
             }
         },
         "emoji": {
