@@ -149,6 +149,8 @@ bot.on("ready", function () {
                     usage: "&bye",
                     description: "Shuts down the bot.",
                     process: function(bot, msg, params, choice){
+                        console.log(msg);
+                        return;
                         if (msg.author.id === "110932722322505728") {
                             msg.channel.send("Goodbye, everyone!").then(message => {
                                 bot.destroy();
@@ -172,7 +174,7 @@ bot.on("ready", function () {
                         if(!msg.member.hasPermission("MANAGE_EMOJIS")){
                             msg.channel.send("Sorry, bud, but you don't have sufficient permissions to edit server emojis.");
                         }
-                        var imgUrlReg = /\.(jpg|png)$/;
+                        var imgUrlReg = /\.(jpg|png|gif)$/;
                         var paramsArray = params.split(" ");
                         var link = paramsArray[0];
                         var emojiName = paramsArray[1];
@@ -291,6 +293,7 @@ bot.on("ready", function () {
                                 
                                 var imgUrlReg = /\.(jpg|png|gif)$/;
                                 match = imgUrlReg.exec(link);
+                                console.log(match);
                                 if(match == null){
                                     msg.channel.send("I don't believe that's an image, buddy.");
                                     return;
