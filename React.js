@@ -102,7 +102,7 @@ bot.on("ready", function () {
                             simpleGit().pull(function(error, update) {
                                 if(update && update.summary.changes) {
                                     msg.channel.send("Be right back!").then(message => {
-                                        exec('forever React.js', (error, stdout, stderr) => {
+                                        exec('forever restart react', (error, stdout, stderr) => {
                                             if (error) {
                                                 console.error(`exec error: ${error}`);
                                                 return;
@@ -110,7 +110,6 @@ bot.on("ready", function () {
                                             console.log(`stdout: ${stdout}`);
                                             console.log(`stderr: ${stderr}`);
                                         });
-                                        bot.destroy();
                                     }).catch(console.log);
                                 }
                                 else{
@@ -131,7 +130,7 @@ bot.on("ready", function () {
                     process: function(bot, msg, params, choice){
                         if (msg.author.id === "110932722322505728"){
                             msg.channel.send("Be right back!").then(message => {
-                                exec('forever React.js', (error, stdout, stderr) => {
+                                exec('forever restart react', (error, stdout, stderr) => {
                                     if (error) {
                                         console.error(`exec error: ${error}`);
                                         return;
@@ -139,7 +138,6 @@ bot.on("ready", function () {
                                     console.log(`stdout: ${stdout}`);
                                     console.log(`stderr: ${stderr}`);
                                 });
-                                bot.destroy();
                             }).catch(console.log);
                         }
                     }
@@ -152,7 +150,7 @@ bot.on("ready", function () {
                         console.log(msg);
                         if (msg.author.id === "110932722322505728") {
                             msg.channel.send("Goodbye, everyone!").then(message => {
-                                bot.destroy();
+                                exec('forever stop react')
                             });
                         }
                         else {
