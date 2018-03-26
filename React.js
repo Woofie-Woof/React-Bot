@@ -68,7 +68,7 @@ bot.login(auth.token);
 
 bot.on("ready", function () {
 	console.log('Did somebody call for a new reaction?');
-    bot.user.setStatus("with so many faces!");
+    bot.user.setPresence({game:{name:"with so many faces!"}, status: "online"});
     if (!fs.existsSync("./emojis/")){
         fs.mkdirSync("./emojis/");
     }
