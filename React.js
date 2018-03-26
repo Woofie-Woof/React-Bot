@@ -32,7 +32,7 @@ catch(e){
 }
 
 try {
-    var sql = require('sqlite');
+    var sql = require('sqlite/legacy');
     sql.open('./data/data.sqlite')
 }
 catch(e) {
