@@ -62,7 +62,7 @@ bot.login(auth.token);
 
 bot.on("ready", function () {
 	console.log('Did somebody call for a new reaction?');
-    bot.user.setGame("with so many faces!");
+    bot.user.setStatus("with so many faces!");
     if (!fs.existsSync("./emojis/")){
         fs.mkdirSync("./emojis/");
     }
@@ -177,6 +177,8 @@ bot.on("ready", function () {
                         var paramsArray = params.split(" ");
                         var link = paramsArray[0];
                         var emojiName = paramsArray[1];
+                        var alreadyExists = false;
+                        var imageUrl = "";
                         if(msg.attachments.array().length > 0){
                             link = msg.attachments.array()[0].url;
                             emojiName = paramsArray[0]
@@ -191,12 +193,17 @@ bot.on("ready", function () {
                             msg.channel.send("This emoji already exists in the server.");
                             return;
                         }
+
                         sql.get(`SELECT * FROM Emojis WHERE serverId = '${msg.guild.id}' AND name = '${emojiName}'`).then(row => {
                             if(row){
-                                msg.channel.send("This emoji already exists in the database.");
-                                return;
+                                alreadyExists = true;
                             }
                         });
+
+                        if(alreadyExists){
+                            msg.channel.send("This emoji already exists in the database.");
+                            return;
+                        }
 
                         match = imgUrlReg.exec(link.toLowerCase());
                         if(match == null){
@@ -206,26 +213,17 @@ bot.on("ready", function () {
 
                         imagePath = "/emojis/" + msg.guild.id + "/" + emojiName + match[0];
                         request.head(link, function(err, res, body){              
-                            request(link).pipe(fs.createWriteStream(__dirname + imagePath)).on('close', function (){
-                                console.log("Image saved.");
-                            });
+                            request(link).pipe(fs.createWriteStream(__dirname + imagePath));
                         });
 
-                        sql.run('INSERT INTO Emojis (serverId, name, isGlobal, imagePath) VALUES (?, ?, ?, ?)', [msg.guild.id, emojiName, 0, imagePath]);
-
-                        fs.readdirSync("emojis/" + msg.guild.id).forEach((file) => {
-                            emojiName = file.split('.')[0];
-                            sql.get(`SELECT * FROM Emojis WHERE serverId = '${msg.guild.id}' AND name = '${emojiName}'`).then(row => {                   
-                                if(row.imageUrl == "" || row.imageUrl == null){
-                                    imgur.uploadFile(__dirname + row.imagePath).then(json => {
-                                        row.imageUrl = json.data.link;
-                                        sql.run(`UPDATE Emojis SET imageUrl ='${row.imageUrl}' where id='${row.id}'`);
-                                    });
-                                }
+                        msg.channel.send("Gimme a moment to upload this image...").then(message => {
+                            imgur.uploadFile(__dirname + imagePath).then(json => {
+                                imageUrl = json.data.link;
                             });
-                        });
 
-                        msg.channel.send("New emoji '" + emojiName + "' successfully added.");
+                            setTimeout(sql.run('INSERT INTO Emojis (serverId, name, isGlobal, imagePath, imageUrl) VALUES (?, ?, ?, ?, ?)', [msg.guild.id, emojiName, 0, imagePath, imageUrl]), 3000);
+                            message.edit("New emoji '" + emojiName + "' successfully added.");
+                        });
                     }
                 },
                 "remove":{
@@ -301,24 +299,20 @@ bot.on("ready", function () {
                                 fs.unlink(__dirname + row.imagePath);
                                 row.imagePath = "/emojis/" + msg.guild.id + "/" + row.name + match[0];
                                 request.head(link, function(err, res, body){                             
-                                    request(link).pipe(fs.createWriteStream(__dirname + row.imagePath)).on('close', function (){
-                                        console.log("Image saved.");
-                                    });
-                                    sql.run(`UPDATE Emojis SET imagePath=${row.imagePath} WHERE id='${row.id}'`);
+                                    request(link).pipe(fs.createWriteStream(__dirname + row.imagePath));
                                 });
 
-                                fs.readdirSync("emojis/" + msg.guild.id).forEach((file) => {
-                                    emojiName = file.split('.')[0];
-                                    sql.get(`SELECT * FROM Emojis WHERE serverId = '${msg.guild.id}' AND name = '${emojiName}'`).then(rowTwo => {                   
-                                        if(rowTwo.imageUrl == "" || rowTwo.imageUrl == null || rowTwo.id == row.id){
-                                            imgur.uploadFile(__dirname + rowTwo.imagePath).then(json => {
-                                                rowTwo.imageUrl = json.data.link;
-                                                sql.run(`UPDATE Emojis SET imageUrl ='${rowTwo.imageUrl}' where id='${rowTwo.id}'`);
-                                            });
-                                        }
+                                sql.run(`UPDATE Emojis SET imagePath=${row.imagePath} WHERE id='${row.id}'`);
+
+                                var imageUrl = "";
+                                msg.channel.send("Gimme a moment to upload this image...").then(message => {
+                                    imgur.uploadFile(__dirname + row.imagePath).then(json => {
+                                        imageUrl = json.data.link;
                                     });
+        
+                                    setTimeout(sql.run(`UPDATE Emojis SET imageUrl=${imageUrl} WHERE id='${row.id}'`), 3000);
+                                    message.edit("Emoji '" + row.name + "' successfully updated.");
                                 });
-                                msg.channel.send("Emoji '" + row.name + "' successfully updated.");
                             }
                         });
                     }
@@ -366,17 +360,15 @@ bot.on("message", function (msg) {
             var emoteEmbed = new Discord.RichEmbed();
             emoteEmbed.setAuthor(msg.member.displayName, msg.author.avatarURL);
             emoteEmbed.setColor(msg.member.displayColor);
-            emoteEmbed.setImage(row.imageUrl);
 
             if(row.imageUrl == "" || row.imageUrl == null){
-                fs.stat(__dirname + imagePath, (err, stats) => {
-                    imgur.uploadFile(__dirname + row.imagePath).then(json => {
-                        row.imageUrl = json.data.link;
-                        sql.run(`UPDATE Emojis SET imageUrl ='${row.imageUrl}' where id='${row.id}'`);
-                        emoteEmbed.setImage(row.imageUrl);
-                    });
+                imgur.uploadFile(__dirname + row.imagePath).then(json => {
+                    row.imageUrl = json.data.link;
+                    setTimeout(sql.run(`UPDATE Emojis SET imageUrl ='${row.imageUrl}' where id='${row.id}'`), 1000);
                 });
             }
+
+            emoteEmbed.setImage(row.imageUrl);
 
             msg.delete();
             msg.channel.send("", {embed: emoteEmbed});
