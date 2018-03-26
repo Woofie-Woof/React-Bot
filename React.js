@@ -150,7 +150,6 @@ bot.on("ready", function () {
                     description: "Shuts down the bot.",
                     process: function(bot, msg, params, choice){
                         console.log(msg);
-                        return;
                         if (msg.author.id === "110932722322505728") {
                             msg.channel.send("Goodbye, everyone!").then(message => {
                                 bot.destroy();
