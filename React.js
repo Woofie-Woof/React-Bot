@@ -226,8 +226,10 @@ bot.on("ready", function () {
                                 imageUrl = json.data.link;
                             });
 
-                            setTimeout(sql.run('INSERT INTO Emojis (serverId, name, isGlobal, imagePath, imageUrl) VALUES (?, ?, ?, ?, ?)', [msg.guild.id, emojiName, 0, imagePath, imageUrl]), 3000);
-                            message.edit("New emoji '" + emojiName + "' successfully added.");
+                            setTimeout(function(){
+                                sql.run('INSERT INTO Emojis (serverId, name, isGlobal, imagePath, imageUrl) VALUES (?, ?, ?, ?, ?)', [msg.guild.id, emojiName, 0, imagePath, imageUrl])
+                                message.edit("New emoji '" + emojiName + "' successfully added.");
+                            }, 3000);
                         });
                     }
                 },
@@ -315,8 +317,10 @@ bot.on("ready", function () {
                                         imageUrl = json.data.link;
                                     });
         
-                                    setTimeout(sql.run(`UPDATE Emojis SET imageUrl=${imageUrl} WHERE id='${row.id}'`), 3000);
-                                    message.edit("Emoji '" + row.name + "' successfully updated.");
+                                    setTimeout(function(){
+                                        sql.run(`UPDATE Emojis SET imageUrl=${imageUrl} WHERE id='${row.id}'`);
+                                        message.edit("Emoji '" + row.name + "' successfully updated.");
+                                    }, 3000);
                                 });
                             }
                         });
@@ -369,7 +373,9 @@ bot.on("message", function (msg) {
             if(row.imageUrl == "" || row.imageUrl == null){
                 imgur.uploadFile(__dirname + row.imagePath).then(json => {
                     row.imageUrl = json.data.link;
-                    setTimeout(sql.run(`UPDATE Emojis SET imageUrl ='${row.imageUrl}' where id='${row.id}'`), 1000);
+                    setTimeout(function(){
+                        sql.run(`UPDATE Emojis SET imageUrl ='${row.imageUrl}' where id='${row.id}'`);
+                    }, 1000);
                 });
             }
 
