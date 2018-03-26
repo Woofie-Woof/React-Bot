@@ -96,7 +96,7 @@ bot.on("ready", function () {
                 "pull": {
                     usage: "&pull",
                     description: "Will check if there is a new commit available. If commit is found, will attempt to restart with the new code.",
-                    process: function(bot, msg, params, choice){
+                    process: function(msg, params){
                         if (msg.author.id === "110932722322505728"){
                             msg.channel.send("Checking for updates...");
                             simpleGit().pull(function(error, update) {
@@ -127,7 +127,7 @@ bot.on("ready", function () {
                 "restart": {
                     usage: "!restart",
                     description: "Forces React-Bot to restart without needing to update.",
-                    process: function(bot, msg, params, choice){
+                    process: function(msg, params){
                         if (msg.author.id === "110932722322505728"){
                             msg.channel.send("Be right back!").then(message => {
                                 exec('forever restart react', (error, stdout, stderr) => {
@@ -146,7 +146,7 @@ bot.on("ready", function () {
                 "bye": {
                     usage: "&bye",
                     description: "Shuts down the bot.",
-                    process: function(bot, msg, params, choice){
+                    process: function(msg, params){
                         console.log(msg);
                         if (msg.author.id === "110932722322505728") {
                             msg.channel.send("Goodbye, everyone!").then(message => {
