@@ -10,7 +10,7 @@
     "node-opus": "^0.2.6",
     "request": "^2.81.0",
     "simple-git": "^1.92.0",
-    "sqlite": "^2.9.1",
+    "sqlite": "^2.8.0",
     "synchronize": "^2.0.0"
   },
   "devDependencies": {},
