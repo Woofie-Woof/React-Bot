@@ -54,6 +54,13 @@ catch(e){
     console.log("You're missing 'simple-git' from your dependencies! Surely you want this bot to update, right?");
 }
 
+try{
+    var exec = require('child_process').exec;
+}
+catch(e){
+    console.log("Now now, if you don't have 'child_process', React won't be able to restart.");
+}
+
 var sync = require('synchronize');
 
 var bot = new Discord.Client({autoReconnect: true, disableEvents: ["TYPING_START", "TYPING_STOP", "GUILD_MEMBER_SPEAKING", "GUILD_MEMBER_AVAILABLE", "PRESSENCE_UPDATE"]});
