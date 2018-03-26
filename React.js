@@ -40,11 +40,10 @@ catch(e) {
 }
 
 try {
-    var imgur = require('imgur');
-    imgur.setClientId(auth.imgur);
+    const imgurUploader = require('imgur-uploader');
 }
 catch(e){
-    console.log("'imgur' is pretty necessary for uploading images for later use.");
+    console.log("'imgur-uploader' is pretty necessary for uploading images for later use.");
 }
 
 try{
@@ -222,8 +221,8 @@ bot.on("ready", function () {
                         });
 
                         msg.channel.send("Gimme a moment to upload this image...").then(message => {
-                            imgur.uploadFile(__dirname + imagePath).then(json => {
-                                imageUrl = json.data.link;
+                            imgurUploader(fs.readFileSync(__dirname + imagePath), {title: emojiName}, auth.imgur).then(data => {
+                                imageUrl = data.link;
                             });
 
                             setTimeout(function(){
@@ -313,8 +312,8 @@ bot.on("ready", function () {
 
                                 var imageUrl = "";
                                 msg.channel.send("Gimme a moment to upload this image...").then(message => {
-                                    imgur.uploadFile(__dirname + row.imagePath).then(json => {
-                                        imageUrl = json.data.link;
+                                    imgurUploader(fs.readFileSync(__dirname + row.imagePath), {title: row.name}, auth.imgur).then(data => {
+                                        imageUrl = data.link;
                                     });
         
                                     setTimeout(function(){
@@ -371,12 +370,13 @@ bot.on("message", function (msg) {
             emoteEmbed.setColor(msg.member.displayColor);
 
             if(row.imageUrl == "" || row.imageUrl == null){
-                imgur.uploadFile(__dirname + row.imagePath).then(json => {
-                    row.imageUrl = json.data.link;
-                    setTimeout(function(){
-                        sql.run(`UPDATE Emojis SET imageUrl ='${row.imageUrl}' where id='${row.id}'`);
-                    }, 1000);
+                imgurUploader(fs.readFileSync(__dirname + row.imagePath), {title: row.name}, auth.imgur).then(data => {
+                    row.imageUrl = data.link;
                 });
+
+                setTimeout(function(){
+                    sql.run(`UPDATE Emojis SET imageUrl ='${row.imageUrl}' where id='${row.id}'`);
+                }, 1000);
             }
 
             emoteEmbed.setImage(row.imageUrl);
