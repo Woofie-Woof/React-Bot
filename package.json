@@ -4,13 +4,14 @@
   "description": "React Bot is designed to store images inside a database to simulate additional emoji slots per server. It will automatically resize images as needed and it is fully customizable.",
   "main": "React.js",
   "dependencies": {
+    "better-sqlite3": "^4.1.0",
+    "cloudinary": "^1.11.0",
     "discord.js": "^11.2.1",
-    "erlpack": "github:hammerandchisel/erlpack",
     "imgur-uploader": "^4.2.1",
+    "node-gyp": "^3.6.2",
     "node-opus": "^0.2.6",
     "request": "^2.81.0",
     "simple-git": "^1.92.0",
-    "sqlite": "^2.8.0",
     "synchronize": "^2.0.0"
   },
   "devDependencies": {},

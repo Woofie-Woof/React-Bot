@@ -32,19 +32,26 @@ catch(e){
 }
 
 try {
-    var sql = require('sqlite/legacy');
-    sql.open('./data/data.sqlite')
+    var newDBFlag = false;
+    if (!fs.existsSync("./data/data.db")){
+        newDBFlag = true;
+    }
+
+    var Database = require('better-sqlite3');
+    var db = new Database('./data/data.db');
 }
 catch(e) {
-    console.log("For database keeping purposes. 'sqlite' is pretty necessary.");
+    console.error(e);
+    process.exit();
 }
 
-try {
-    const imgurUploader = require('imgur-uploader');
-}
-catch(e){
-    console.log("'imgur-uploader' is pretty necessary for uploading images for later use.");
-}
+var cloudinary = require('cloudinary');
+
+cloudinary.config({ 
+    cloud_name: 'woofie', 
+    api_key: auth.cloudinary, 
+    api_secret: auth.cloud_secret 
+});
 
 try{
     var simpleGit = require('simple-git');
@@ -60,6 +67,8 @@ catch(e){
     console.log("Now now, if you don't have 'child_process', React won't be able to restart.");
 }
 
+var row;
+
 var bot = new Discord.Client({autoReconnect: true, disableEvents: ["TYPING_START", "TYPING_STOP", "GUILD_MEMBER_SPEAKING", "GUILD_MEMBER_AVAILABLE", "PRESSENCE_UPDATE"]});
 
 bot.login(auth.token);
@@ -67,22 +76,20 @@ bot.login(auth.token);
 bot.on("ready", function () {
 	console.log('Did somebody call for a new reaction?');
     bot.user.setPresence({game:{name:"with so many faces!"}, status: "online"});
-    if (!fs.existsSync("./emojis/")){
-        fs.mkdirSync("./emojis/");
-    }
     
-    sql.migrate();
+    if(newDBFlag){
+        db.prepare('CREATE TABLE Servers (id INTEGER PRIMARY KEY, name TEXT)').run();
+        db.prepare('CREATE TABLE Emojis (id INTEGER PRIMARY KEY, serverId INTEGER NOT NULL, name TEXT NOT NULL, imageUrl TEXT, cloudinaryId TEXT, isGlobal NUMERIC NOT NULL DEFAULT 0, CONSTRAINT Emoji_fk_serverId FOREIGN KEY (serverId) REFERENCES Servers (id) ON UPDATE CASCADE ON DELETE CASCADE, CONSTRAINT Post_ck_isPublished CHECK (isGlobal IN (0, 1)))').run();
+        db.prepare('CREATE INDEX Emoji_ix_serverId ON Emojis (serverId)').run();
+    }
 
     servers = bot.guilds.array();
     servers.forEach(function(element) {
-        if (!fs.existsSync("./emojis/"+ element.id)){
-            fs.mkdirSync("./emojis/"+ element.id);
+        row = db.prepare(`SELECT * from Servers WHERE id = ?`).get(element.id);
+
+        if(!row){
+            db.prepare(`INSERT INTO Servers (id, name) VALUES (?, ?)`).run(element.id, element.name);
         }
-        sql.get(`SELECT * from Servers WHERE id ='${element.id}'`).then(row => {
-            if(!row){
-                sql.run(`INSERT INTO Servers (id, name) VALUES (?, ?)`, [element.id, element.name]);
-            }
-        });
     });
 
     commands = {
@@ -196,11 +203,11 @@ bot.on("ready", function () {
                             return;
                         }
 
-                        sql.get(`SELECT * FROM Emojis WHERE serverId = '${msg.guild.id}' AND name = '${emojiName}'`).then(row => {
-                            if(row){
-                                alreadyExists = true;
-                            }
-                        });
+                        row = db.prepare(`SELECT * FROM Emojis WHERE serverId = ? AND name = ?`).get(msg.guild.id, emojiName);
+
+                        if(row){
+                            alreadyExists = true;
+                        }
 
                         if(alreadyExists){
                             msg.channel.send("This emoji already exists in the database.");
@@ -212,21 +219,11 @@ bot.on("ready", function () {
                             msg.channel.send("I don't believe that's an image, buddy.");
                             return;
                         }
-
-                        imagePath = "/emojis/" + msg.guild.id + "/" + emojiName + match[0];
-                        request.head(link, function(err, res, body){              
-                            request(link).pipe(fs.createWriteStream(__dirname + imagePath));
-                        });
-
                         msg.channel.send("Gimme a moment to upload this image...").then(message => {
-                            imgurUploader(fs.readFileSync(__dirname + imagePath), {title: emojiName}, auth.imgur).then(data => {
-                                imageUrl = data.link;
+                            cloudinary.uploader.upload(link, function(result) { 
+                                db.prepare('INSERT INTO Emojis (serverId, name, isGlobal, imageUrl, cloudinaryId) VALUES (?, ?, ?, ?, ?)').run(msg.guild.id, emojiName, 0, result.url, result.public_id);
+                                message.edit("Emoji '" + emojiName + "' successfully saved.");
                             });
-
-                            setTimeout(function(){
-                                sql.run('INSERT INTO Emojis (serverId, name, isGlobal, imagePath, imageUrl) VALUES (?, ?, ?, ?, ?)', [msg.guild.id, emojiName, 0, imagePath, imageUrl])
-                                message.edit("New emoji '" + emojiName + "' successfully added.");
-                            }, 3000);
                         });
                     }
                 },
@@ -235,16 +232,20 @@ bot.on("ready", function () {
                     description: "Removes a previously added emoji from this server's database.",
                     process: function(msg, params) {
                         if(msg.member.hasPermission("MANAGE_EMOJIS")){
-                            sql.get(`SELECT * FROM Emojis WHERE name = '${params}'`).then(row => {
-                                if(!row){
-                                    msg.channel.send("'" + params + "' doesn't seem to exist in the database.");
-                                    return;
-                                }
+                            row = db.prepare(`SELECT * FROM Emojis WHERE name = ?`).get(params);
+                            if(!row){
+                                msg.channel.send("'" + params + "' doesn't seem to exist in the database.");
+                                return;
+                            }
 
-                                fs.unlink(__dirname + row.imagePath);
-                                sql.run(`DELETE FROM Emojis WHERE id = '${row.id}'`);
-                                msg.channel.send("Emoji '" + params + "' was successfully removed.");
+                            cloudinary.uploader.destroy(row.cloudinaryId, function(result,error) {
+                                if(error){
+                                    console.log('Error deleting image');
+                                }
                             });
+
+                            db.prepare(`DELETE FROM Emojis WHERE id = ?`).run(row.id);
+                            msg.channel.send("Emoji '" + params + "' was successfully removed.");
                             
                             return;
                         }
@@ -265,83 +266,78 @@ bot.on("ready", function () {
                             msg.channel.send("**Not enough paramenters** there, pal. Give me something like `&update SleepyWoof name WoofSlep`");
                             return;
                         }
-                        sql.get(`SELECT * FROM Emojis WHERE name = '${paramsArray[0]}'`).then(row => {
-                            if(!row){
-                                msg.channel.send("'" + paramsArray[0] + "' doesn't seem to exist in the database.");
+                        row = db.prepare(`SELECT * FROM Emojis WHERE name = ? AND serverId = ?`).get(paramsArray[0], msg.guild.id);
+
+                        if(!row){
+                            msg.channel.send("'" + paramsArray[0] + "' doesn't seem to exist in the database.");
+                            return;
+                        }
+
+                        if(paramsArray[1] == "name"){
+                            if(paramsArray[2] == undefined){
+                                msg.channel.send("You're not giving me a name to update to here.");
+                                return;
+                            }
+                            db.prepare(`UPDATE Emojis SET name=? WHERE id=?`).run(paramsArray[2], row.id);
+                            row.name = paramsArray[2];
+                            msg.channel.send("Emoji '" + row.name + "' successfully updated.");
+                            return;
+                        }
+                        else if(paramsArray[1] == "image"){
+                            var link = paramsArray[2];
+                            if(msg.attachments.array().length > 0){
+                                link = msg.attachments.array()[0].url;
+                            }
+
+                            if(link == null || link == undefined){
+                                msg.channel.send("You kinda need a new image to update to. Just sayin'.");
+                                return;
+                            }
+                            
+                            var imgUrlReg = /\.(jpg|png|gif)$/;
+                            match = imgUrlReg.exec(link);
+                            console.log(match);
+                            if(match == null){
+                                msg.channel.send("I don't believe that's an image, buddy.");
                                 return;
                             }
 
-                            if(paramsArray[1] == "name"){
-                                if(paramsArray[2] == undefined){
-                                    msg.channel.send("You're not giving me a name to update to here.");
-                                    return;
+                            cloudinary.uploader.destroy(row.cloudinaryId, function(result,error) {
+                                if(error){
+                                    console.log('Error deleting image');
                                 }
-                                sql.run(`UPDATE Emojis SET name='${paramsArray[2]}' WHERE id='${row.id}'`);
-                                row.name = paramsArray[2];
-                                msg.channel.send("Emoji '" + row.name + "' successfully updated.");
-                                return;
-                            }
-                            else if(paramsArray[1] == "image"){
-                                var link = paramsArray[2];
-                                if(msg.attachments.array().length > 0){
-                                    link = msg.attachments.array()[0].url;
-                                }
+                            });
 
-                                if(link == null || link == undefined){
-                                    msg.channel.send("You kinda need a new image to update to. Just sayin'.");
-                                    return;
-                                }
-                                
-                                var imgUrlReg = /\.(jpg|png|gif)$/;
-                                match = imgUrlReg.exec(link);
-                                console.log(match);
-                                if(match == null){
-                                    msg.channel.send("I don't believe that's an image, buddy.");
-                                    return;
-                                }
-                                
-                                fs.unlink(__dirname + row.imagePath);
-                                row.imagePath = "/emojis/" + msg.guild.id + "/" + row.name + match[0];
-                                request.head(link, function(err, res, body){                             
-                                    request(link).pipe(fs.createWriteStream(__dirname + row.imagePath));
+                            msg.channel.send("Gimme a moment to upload this image...").then(message => {
+                                cloudinary.uploader.upload(link, function(result) {
+                                    db.prepare(`UPDATE Emojis SET imageUrl=? WHERE id=?`).run(result.url, row.id);
+                                    db.prepare(`UPDATE Emojis SET cloudinaryId=? WHERE id=?`).run(result.public_id, row.id);
+                                    message.edit("Emoji '" + row.name + "' successfully saved.");
                                 });
-
-                                sql.run(`UPDATE Emojis SET imagePath=${row.imagePath} WHERE id='${row.id}'`);
-
-                                var imageUrl = "";
-                                msg.channel.send("Gimme a moment to upload this image...").then(message => {
-                                    imgurUploader(fs.readFileSync(__dirname + row.imagePath), {title: row.name}, auth.imgur).then(data => {
-                                        imageUrl = data.link;
-                                    });
-        
-                                    setTimeout(function(){
-                                        sql.run(`UPDATE Emojis SET imageUrl=${imageUrl} WHERE id='${row.id}'`);
-                                        message.edit("Emoji '" + row.name + "' successfully updated.");
-                                    }, 3000);
-                                });
-                            }
-                        });
+                            });
+                        }
                     }
                 },
                 "list":{
                     usage: "&list",
                     description: "Shows a listing of the emojis in the database for this server.",
                     process: function(msg, params){
-                        sql.all(`SELECT * FROM Emojis WHERE serverId = '${msg.guild.id}'`).then(rows => {
-                            if(rows.length === 0){
-                                msg.channel.send("This server has no recorded emojis in the database.");
-                                return;
-                            }
-                            var listString = "**__This server has the following emojis:__**";
-                            for (var key in rows) {
-                                if (rows.hasOwnProperty(key)) {
-                                    var row = rows[key];
-                                    listString += "\n" + row.name;
-                                }
-                            }
+                        var rows = db.prepare(`SELECT * FROM Emojis WHERE serverId = ?`).all(msg.guild.id);
 
-                            msg.channel.send(listString);
-                        });
+                        if(rows.length === 0){
+                            msg.channel.send("This server has no recorded emojis in the database.");
+                            return;
+                        }
+
+                        var listString = "**__This server has the following emojis:__**";
+                        for (var key in rows) {
+                            if (rows.hasOwnProperty(key)) {
+                                var row = rows[key];
+                                listString += "\n" + row.name;
+                            }
+                        }
+
+                        msg.channel.send(listString);
                     }
                 }
             }
@@ -359,29 +355,19 @@ bot.on("message", function (msg) {
         if(msg.guild.emojis.find("name", emojiName) != null){
             return;
         }
-        sql.get(`SELECT * FROM Emojis WHERE serverId = '${msg.guild.id}' AND name = '${emojiName}'`).then(row => {
-            if(!row){
-                return;
-            }
-            var emoteEmbed = new Discord.RichEmbed();
-            emoteEmbed.setAuthor(msg.member.displayName, msg.author.avatarURL);
-            emoteEmbed.setColor(msg.member.displayColor);
+        
+        row = db.prepare(`SELECT * FROM Emojis WHERE serverId = ? AND name = ?`).get(msg.guild.id, emojiName);
+        
+        if(!row){
+            return;
+        }
+        var emoteEmbed = new Discord.RichEmbed();
+        emoteEmbed.setAuthor(msg.member.displayName, msg.author.avatarURL);
+        emoteEmbed.setColor(msg.member.displayColor);
+        emoteEmbed.setImage(row.imageUrl);
 
-            if(row.imageUrl == "" || row.imageUrl == null){
-                imgurUploader(fs.readFileSync(__dirname + row.imagePath), {title: row.name}, auth.imgur).then(data => {
-                    row.imageUrl = data.link;
-                });
-
-                setTimeout(function(){
-                    sql.run(`UPDATE Emojis SET imageUrl ='${row.imageUrl}' where id='${row.id}'`);
-                }, 1000);
-            }
-
-            emoteEmbed.setImage(row.imageUrl);
-
-            msg.delete();
-            msg.channel.send("", {embed: emoteEmbed});
-        });
+        msg.delete();
+        msg.channel.send("", {embed: emoteEmbed});
     }
     if (msg.author.id != bot.user.id && msg.content[0] === "&"){
         var msgcmd = msg.content.split(" ")[0].substring(1);
